@@ -11,8 +11,8 @@ android {
         applicationId = "com.grandmatv.player"
         minSdk = 29
         targetSdk = 32
-        versionCode = 4
-        versionName = "0.2.2"
+        versionCode = 5
+        versionName = "1.0.0"
     }
 
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
