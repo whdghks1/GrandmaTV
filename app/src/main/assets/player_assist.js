@@ -2,34 +2,42 @@
   "use strict";
   if (window.__grandmaAssistInstalled) return;
   window.__grandmaAssistInstalled = true;
-
-  // Safe mode: never modify video styles, positioning, player containers or playback.
-  // Only click a visible and enabled explicit Skip Ad button when one appears.
-  const skipTerms = /^(skip\s*(ad|ads|advertisement|commercial)?|광고\s*(건너뛰기|넘기기|스킵)|건너뛰기)$/i;
-  const isVisible = (el) => {
-    if (!el || !el.isConnected || el.disabled || el.getAttribute("aria-disabled") === "true") return false;
-    const rect = el.getBoundingClientRect();
-    const style = getComputedStyle(el);
-    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" &&
-      style.display !== "none" && Number(style.opacity) > 0;
+  // Keep the website/player untouched to preserve the proven playback path.
+  const normalize = s => (s || "").replace(/\s+/g, " ").trim();
+  const matches = s => /^(?:skip(?:\s+(?:this\s+)?(?:ad|ads|advertisement))?|광고\s*(?:건너뛰기|넘기기|스킵)|건너뛰기)(?:\s*[»›>])?$/i.test(normalize(s));
+  const state = {checks:0, skipped:0, frames:0, inaccessibleFrames:0, candidates:0, last:"none"};
+  const visible = el => {
+    if (!el || !el.isConnected || el.disabled || el.getAttribute("aria-disabled")==="true") return false;
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    return r.width>1 && r.height>1 && cs.display!=="none" &&
+      cs.visibility!=="hidden" && Number(cs.opacity)>0;
   };
-  function trySkip(root) {
-    try {
-      for (const element of root.querySelectorAll('button, [role="button"], input[type="button"], a')) {
-        const label = [element.innerText, element.value, element.getAttribute("aria-label"), element.getAttribute("title")]
-          .filter(Boolean).join(" ").trim().replace(/\s+/g, " ");
-        if (label.length < 90 && skipTerms.test(label) && isVisible(element)) {
-          element.click();
-          return true;
-        }
+  function scan(root) {
+    const elements = root.querySelectorAll("button, a, [role=button], input[type=button], [class*=skip], [id*=skip]");
+    for (const el of elements) {
+      const labels = [el.innerText, el.textContent, el.value, el.getAttribute("aria-label"), el.title]
+        .filter(Boolean).map(normalize);
+      if (labels.some(matches) && visible(el)) {
+        state.candidates++;
+        state.last = labels.find(matches) || "skip";
+        try { el.click(); state.skipped++; return true; } catch (_) {}
       }
-      for (const frame of root.querySelectorAll("iframe")) {
-        try {
-          if (frame.contentDocument && trySkip(frame.contentDocument)) return true;
-        } catch (_) { /* Cross-origin frame cannot be accessed. */ }
-      }
-    } catch (_) { /* Page may be replacing its nodes. */ }
+      if (el.shadowRoot && scan(el.shadowRoot)) return true;
+    }
+    for (const frame of root.querySelectorAll("iframe")) {
+      state.frames++;
+      try {
+        if (frame.contentDocument && scan(frame.contentDocument)) return true;
+        if (!frame.contentDocument) state.inaccessibleFrames++;
+      } catch (_) { state.inaccessibleFrames++; }
+    }
     return false;
   }
-  setInterval(() => trySkip(document), 1500);
+  window.__grandmaDiagnostics = () => JSON.stringify(state);
+  setInterval(() => {
+    state.checks++;
+    state.frames = 0;
+    state.inaccessibleFrames = 0;
+    try { scan(document); } catch (_) {}
+  }, 1500);
 })();
