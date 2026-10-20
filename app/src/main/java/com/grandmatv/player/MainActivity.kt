@@ -167,16 +167,25 @@ class MainActivity : Activity() {
     private fun showMoreDialog() {
         AlertDialog.Builder(this)
             .setTitle("보호자 기능")
-            .setItems(arrayOf("Chrome으로 열기", "앱 종료", "취소")) { _, which ->
+            .setItems(arrayOf("광고 버튼 감지 상태", "Chrome으로 열기", "앱 종료", "취소")) { _, which ->
                 when (which) {
                     0 -> {
+                        browser.evaluateJavascript("window.__grandmaDiagnostics ? window.__grandmaDiagnostics() : 'not installed'") { info ->
+                            AlertDialog.Builder(this)
+                                .setTitle("Skip Ad 진단")
+                                .setMessage("감지 결과: $info\n\n배너 광고에는 Skip Ad 버튼이 없으며, 외부 iframe은 접근할 수 없습니다.")
+                                .setPositiveButton("확인", null)
+                                .show()
+                        }
+                    }
+                    1 -> {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL))
                         intent.setPackage("com.android.chrome")
                         try { startActivity(intent) } catch (_: Exception) {
                             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL)))
                         }
                     }
-                    1 -> finish()
+                    2 -> finish()
                 }
             }.show()
     }
