@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private lateinit var shield: View
     private lateinit var hint: TextView
     private val handler = Handler(Looper.getMainLooper())
+    private var focusVideo = true
     private var customView: View? = null
     private var customCallback: WebChromeClient.CustomViewCallback? = null
     private var locked = false
@@ -59,6 +60,11 @@ class MainActivity : Activity() {
             settings.setSupportMultipleWindows(false)
             settings.javaScriptCanOpenWindowsAutomatically = false
             webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    installPlayerAssist()
+                }
+
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val uri = request?.url ?: return false
                     return uri.scheme != "https" && uri.scheme != "about"
@@ -117,6 +123,17 @@ class MainActivity : Activity() {
         handler.postDelayed(autoLock, AUTO_LOCK_DELAY_MS)
     }
 
+    private fun installPlayerAssist() {
+        try {
+            val script = assets.open("player_assist.js").bufferedReader().use { it.readText() }
+            browser.evaluateJavascript(script) {
+                browser.evaluateJavascript("window.__grandmaSetFocus && window.__grandmaSetFocus(${focusVideo});", null)
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "영상 화면 보조 기능 실행 실패", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
     private fun lockTouch() {
@@ -153,16 +170,20 @@ class MainActivity : Activity() {
     private fun showMoreDialog() {
         AlertDialog.Builder(this)
             .setTitle("보호자 기능")
-            .setItems(arrayOf("Chrome으로 열기", "앱 종료", "취소")) { _, which ->
+            .setItems(arrayOf(if (focusVideo) "원래 웹페이지 보기" else "영상만 크게 보기", "Chrome으로 열기", "앱 종료", "취소")) { _, which ->
                 when (which) {
                     0 -> {
+                        focusVideo = !focusVideo
+                        browser.evaluateJavascript("window.__grandmaSetFocus && window.__grandmaSetFocus(${focusVideo});", null)
+                    }
+                    1 -> {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL))
                         intent.setPackage("com.android.chrome")
                         try { startActivity(intent) } catch (_: Exception) {
                             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CHANNEL_URL)))
                         }
                     }
-                    1 -> finish()
+                    2 -> finish()
                 }
             }.show()
     }
